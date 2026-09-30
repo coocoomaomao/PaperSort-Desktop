@@ -7,6 +7,7 @@ from pathlib import Path
 import fitz
 import pytest
 
+from papersort.duplicates import duplicate_groups
 from papersort.executor import apply_plan, undo_manifest
 from papersort.exporter import export_bibtex, export_csv
 from papersort.metadata import build_proposed_filename, normalize_doi, validate_rename_template
@@ -49,6 +50,20 @@ def test_same_doi_nonidentical_is_flagged(tmp_path: Path):
     make_pdf(tmp_path / "b.pdf", "Second Paper", "Bob Li", "2024", "10.5678/shared", "two")
     result = scan_folder(tmp_path)
     assert {r.duplicate_kind for r in result.records} == {"doi"}
+
+
+def test_duplicate_groups_are_stable(tmp_path: Path):
+    original = tmp_path / "a.pdf"
+    make_pdf(original, "Duplicate Study", "Kai Chen", "2023", "10.2222/dup")
+    shutil.copy2(original, tmp_path / "b.pdf")
+    make_pdf(tmp_path / "unique.pdf", "Unique Study", "Ada Smith", "2025", "10.9999/unique")
+
+    result = scan_folder(tmp_path)
+    groups = duplicate_groups(result.records)
+    assert len(groups) == 1
+    group_id, records = groups[0]
+    assert group_id.startswith("sha256:")
+    assert [record.path.name for record in records] == ["a.pdf", "b.pdf"]
 
 
 def test_custom_rename_template(tmp_path: Path):
