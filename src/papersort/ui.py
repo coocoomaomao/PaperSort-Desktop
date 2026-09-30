@@ -7,6 +7,8 @@ from PySide6.QtGui import QBrush, QColor, QFont, QPainter, QPen
 from PySide6.QtWidgets import (
     QApplication,
     QCheckBox,
+    QComboBox,
+    QDialog,
     QFileDialog,
     QFrame,
     QHBoxLayout,
@@ -23,6 +25,7 @@ from PySide6.QtWidgets import (
     QHeaderView,
 )
 
+from .duplicates import duplicate_groups
 from .executor import apply_plan, latest_manifest, undo_manifest
 from .exporter import export_bibtex, export_csv
 from .metadata import DEFAULT_RENAME_TEMPLATE, validate_rename_template
@@ -145,6 +148,146 @@ class ScanWorker(QThread):
             self.failed.emit(str(exc))
 
 
+class DuplicatePaperCard(QFrame):
+    def __init__(self, side: str, parent: QWidget | None = None):
+        super().__init__(parent)
+        self.setObjectName("compareCard")
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(18, 16, 18, 16)
+        layout.setSpacing(8)
+
+        heading = QLabel(side)
+        heading.setObjectName("compareHeading")
+        layout.addWidget(heading)
+
+        self.fields: dict[str, QLabel] = {}
+        for label in ("文件名", "大小", "页数", "标题", "作者", "年份", "DOI", "完整路径"):
+            row = QVBoxLayout()
+            key = QLabel(label)
+            key.setObjectName("compareKey")
+            value = QLabel("—")
+            value.setObjectName("compareValue")
+            value.setWordWrap(True)
+            value.setTextInteractionFlags(Qt.TextSelectableByMouse)
+            row.addWidget(key)
+            row.addWidget(value)
+            layout.addLayout(row)
+            self.fields[label] = value
+        layout.addStretch()
+
+    @staticmethod
+    def _format_size(size_bytes: int) -> str:
+        size = float(size_bytes)
+        for unit in ("B", "KB", "MB", "GB"):
+            if size < 1024 or unit == "GB":
+                return f"{size:.0f} {unit}" if unit == "B" else f"{size:.1f} {unit}"
+            size /= 1024
+        return f"{size_bytes} B"
+
+    def set_record(self, record):
+        self.fields["文件名"].setText(record.path.name)
+        self.fields["大小"].setText(self._format_size(record.size_bytes))
+        self.fields["页数"].setText(str(record.page_count or "—"))
+        self.fields["标题"].setText(record.title or "—")
+        self.fields["作者"].setText("；".join(record.authors) or "—")
+        self.fields["年份"].setText(record.year or "—")
+        self.fields["DOI"].setText(record.doi or "—")
+        self.fields["完整路径"].setText(str(record.path))
+
+
+class DuplicateCompareDialog(QDialog):
+    def __init__(self, records, parent: QWidget | None = None):
+        super().__init__(parent)
+        self.setWindowTitle("疑似重复论文对比")
+        self.resize(1040, 650)
+        self.setMinimumSize(860, 560)
+        self.groups = duplicate_groups(records)
+
+        root = QVBoxLayout(self)
+        root.setContentsMargins(22, 20, 22, 20)
+        root.setSpacing(14)
+
+        title = QLabel("疑似重复论文 · 左右对比")
+        title.setObjectName("compareTitle")
+        root.addWidget(title)
+        tip = QLabel("这里只做对比，不会自动删除文件。确认后请回到主表决定是否处理。")
+        tip.setObjectName("compareTip")
+        root.addWidget(tip)
+
+        group_row = QHBoxLayout()
+        group_row.addWidget(QLabel("重复组"))
+        self.group_selector = QComboBox()
+        for group_id, group in self.groups:
+            kind = "完全重复" if group[0].duplicate_kind == "exact" else "同 DOI"
+            marker = group_id.split(":", 1)[1] if ":" in group_id else group_id
+            self.group_selector.addItem(f"{kind} · {len(group)} 个文件 · {marker}")
+        self.group_selector.currentIndexChanged.connect(self._load_group)
+        group_row.addWidget(self.group_selector, 1)
+        root.addLayout(group_row)
+
+        pick_row = QHBoxLayout()
+        left_pick = QVBoxLayout()
+        left_pick.addWidget(QLabel("左侧文件"))
+        self.left_selector = QComboBox()
+        self.left_selector.currentIndexChanged.connect(self._render_cards)
+        left_pick.addWidget(self.left_selector)
+        right_pick = QVBoxLayout()
+        right_pick.addWidget(QLabel("右侧文件"))
+        self.right_selector = QComboBox()
+        self.right_selector.currentIndexChanged.connect(self._render_cards)
+        right_pick.addWidget(self.right_selector)
+        pick_row.addLayout(left_pick, 1)
+        pick_row.addLayout(right_pick, 1)
+        root.addLayout(pick_row)
+
+        cards = QHBoxLayout()
+        self.left_card = DuplicatePaperCard("左侧")
+        self.right_card = DuplicatePaperCard("右侧")
+        cards.addWidget(self.left_card, 1)
+        cards.addWidget(self.right_card, 1)
+        root.addLayout(cards, 1)
+
+        close_row = QHBoxLayout()
+        close_row.addStretch()
+        close_btn = QPushButton("关闭对比")
+        close_btn.clicked.connect(self.accept)
+        close_row.addWidget(close_btn)
+        root.addLayout(close_row)
+
+        if self.groups:
+            self._load_group(0)
+
+    def _load_group(self, index: int):
+        if index < 0 or index >= len(self.groups):
+            return
+        group = self.groups[index][1]
+        self.left_selector.blockSignals(True)
+        self.right_selector.blockSignals(True)
+        self.left_selector.clear()
+        self.right_selector.clear()
+        for record in group:
+            label = record.path.name
+            self.left_selector.addItem(label)
+            self.right_selector.addItem(label)
+        self.left_selector.setCurrentIndex(0)
+        self.right_selector.setCurrentIndex(1 if len(group) > 1 else 0)
+        self.left_selector.blockSignals(False)
+        self.right_selector.blockSignals(False)
+        self._render_cards()
+
+    def _render_cards(self):
+        index = self.group_selector.currentIndex()
+        if index < 0 or index >= len(self.groups):
+            return
+        group = self.groups[index][1]
+        left = self.left_selector.currentIndex()
+        right = self.right_selector.currentIndex()
+        if 0 <= left < len(group):
+            self.left_card.set_record(group[left])
+        if 0 <= right < len(group):
+            self.right_card.set_record(group[right])
+
+
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
@@ -214,6 +357,9 @@ class MainWindow(QMainWindow):
         self.apply_btn.setObjectName("primary")
         self.apply_btn.clicked.connect(self.apply_selected)
         self.apply_btn.setEnabled(False)
+        self.duplicate_btn = QPushButton("对比疑似重复")
+        self.duplicate_btn.clicked.connect(self.show_duplicate_compare)
+        self.duplicate_btn.setEnabled(False)
         self.export_btn = QPushButton("导出文献清单")
         self.export_btn.clicked.connect(self.export_library)
         self.export_btn.setEnabled(False)
@@ -224,6 +370,7 @@ class MainWindow(QMainWindow):
         action_row.addWidget(self.scan_btn)
         action_row.addWidget(self.organize)
         action_row.addStretch()
+        action_row.addWidget(self.duplicate_btn)
         action_row.addWidget(self.export_btn)
         action_row.addWidget(self.undo_btn)
         action_row.addWidget(self.apply_btn)
@@ -303,6 +450,13 @@ class MainWindow(QMainWindow):
             QLineEdit:focus {{ border-color: {TEAL}; }}
             #templateLabel {{ color: {NAVY}; font-weight: 700; }}
             #templateHint {{ color: {MUTED}; }}
+            #compareTitle {{ font-size: 20px; font-weight: 800; color: {NAVY}; }}
+            #compareTip {{ color: {MUTED}; }}
+            QFrame#compareCard {{ background: white; border: 1px solid {BORDER}; border-radius: 12px; }}
+            #compareHeading {{ font-size: 16px; font-weight: 800; color: {NAVY}; }}
+            #compareKey {{ color: {MUTED}; font-size: 11px; font-weight: 700; }}
+            #compareValue {{ color: {INK}; }}
+            QComboBox {{ background: white; border: 1px solid {BORDER}; border-radius: 8px; padding: 7px 10px; }}
             QFrame#statCard {{ background: white; border: 1px solid {BORDER}; border-radius: 12px; }}
             #statValue {{ font-size: 23px; font-weight: 800; color: {NAVY}; }}
             #statLabel {{ color: {MUTED}; }}
@@ -414,6 +568,7 @@ class MainWindow(QMainWindow):
         self.card_dup.set_value(self._result.duplicates)
         self.card_missing.set_value(self._result.missing_metadata)
         self._populate_table()
+        self.duplicate_btn.setEnabled(bool(duplicate_groups(self._result.records)))
         self.export_btn.setEnabled(bool(self._result.records))
         self.apply_btn.setEnabled(any(p.action == "rename" for p in self._plan))
 
@@ -456,6 +611,15 @@ class MainWindow(QMainWindow):
             item = self.table.item(row, 0)
             if item is not None:
                 plan.selected = item.checkState() == Qt.Checked
+
+    def show_duplicate_compare(self):
+        if not self._result:
+            return
+        groups = duplicate_groups(self._result.records)
+        if not groups:
+            QMessageBox.information(self, "没有疑似重复", "当前扫描结果里没有可对比的重复组。")
+            return
+        DuplicateCompareDialog(self._result.records, self).exec()
 
     def export_library(self):
         if not self._result or not self._result.records:
