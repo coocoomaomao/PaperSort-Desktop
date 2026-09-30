@@ -41,9 +41,9 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: PaperSort-Desktop-v0.1.0-Windows
+          name: PaperSort-Desktop-v0.2.0-Windows
           path: |
-            dist-installer/PaperSort-Desktop-v0.1.0-Setup.exe
+            dist-installer/PaperSort-Desktop-v0.2.0-Setup.exe
             README.md
             LICENSE
             CONTRIBUTING.md
