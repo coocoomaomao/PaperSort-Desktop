@@ -14,7 +14,7 @@ YEAR_RE = re.compile(r"\b(19\d{2}|20\d{2}|2100)\b")
 GENERIC_TITLES = {"untitled", "document", "microsoft word", "pdf", "paper"}
 DEFAULT_RENAME_TEMPLATE = "{year}_{author}_{title}"
 SUPPORTED_TEMPLATE_FIELDS = ("year", "author", "title", "doi")
-TEMPLATE_TOKEN_RE = re.compile(r"\\{([A-Za-z_][A-Za-z0-9_]*)\\}")
+TEMPLATE_TOKEN_RE = re.compile(r"\{([A-Za-z_][A-Za-z0-9_]*)\}")
 
 
 def sha256_file(path: Path, chunk_size: int = 1024 * 1024) -> str:
