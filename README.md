@@ -12,6 +12,7 @@ PaperSort Desktop is a local-first, open-source Windows app for researchers who 
 - Drag in a folder and recursively scan PDF papers.
 - Extract title, author, year and DOI locally when they can be determined reliably.
 - Detect **exact duplicates** by SHA-256 and **same-DOI duplicates**.
+- Review duplicate groups in a side-by-side comparison window before deciding what to process.
 - Generate readable filenames such as `2026_Smith_Clean_Research_Title.pdf`.
 - Customize the rename template with `{year}`, `{author}`, `{title}` and `{doi}` while keeping a full preview before changes.
 - Preview every rename before anything changes.
