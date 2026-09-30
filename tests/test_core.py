@@ -62,7 +62,7 @@ def test_custom_rename_template(tmp_path: Path):
         doi="10.1234/example",
     )
     assert build_proposed_filename(record, "{author}_{year}_{title}") == "Smith_2025_Useful_Research.pdf"
-    assert build_proposed_filename(record, "{year}-{doi}") == "2025-10.1234_example.pdf"
+    assert build_proposed_filename(record, "{year}-{doi}") == "2025-10_1234_example.pdf"
     assert build_proposed_filename(record, "{title}.pdf") == "Useful_Research.pdf"
     with pytest.raises(ValueError, match="不支持的模板字段"):
         validate_rename_template("{journal}_{title}")
