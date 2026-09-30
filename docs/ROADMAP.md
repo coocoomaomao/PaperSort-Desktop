@@ -20,11 +20,11 @@
 - Live preview through the existing rename plan
 - Remember the last template locally
 - One-click restore to the safe default template
+- Side-by-side duplicate comparison with selectable files inside each duplicate group
 
 ## Candidate v0.2.x improvements
 
 - Better author extraction from first-page text
-- Side-by-side duplicate comparison
 - Better metadata confidence indicators
 - More export options
 
