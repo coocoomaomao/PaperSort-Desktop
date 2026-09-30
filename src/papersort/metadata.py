@@ -12,6 +12,9 @@ from .models import PaperRecord
 DOI_RE = re.compile(r"10\.\d{4,9}/[-._;()/:A-Z0-9]+", re.IGNORECASE)
 YEAR_RE = re.compile(r"\b(19\d{2}|20\d{2}|2100)\b")
 GENERIC_TITLES = {"untitled", "document", "microsoft word", "pdf", "paper"}
+DEFAULT_RENAME_TEMPLATE = "{year}_{author}_{title}"
+SUPPORTED_TEMPLATE_FIELDS = ("year", "author", "title", "doi")
+TEMPLATE_TOKEN_RE = re.compile(r"\\{([A-Za-z_][A-Za-z0-9_]*)\\}")
 
 
 def sha256_file(path: Path, chunk_size: int = 1024 * 1024) -> str:
@@ -117,18 +120,37 @@ def surname_from_author(author: str) -> str:
     return safe_filename_component(surname, 36)
 
 
-def build_proposed_filename(record: PaperRecord) -> str:
-    parts: list[str] = []
-    if record.year:
-        parts.append(record.year)
-    if record.authors:
-        parts.append(surname_from_author(record.authors[0]))
-    if record.title:
-        parts.append(safe_filename_component(record.title, 105))
-    if not parts:
+def validate_rename_template(template: str) -> str:
+    template = (template or "").strip()
+    if not template:
+        raise ValueError("命名模板不能为空")
+    unknown = sorted(set(TEMPLATE_TOKEN_RE.findall(template)) - set(SUPPORTED_TEMPLATE_FIELDS))
+    if unknown:
+        allowed = "、".join(f"{{{name}}}" for name in SUPPORTED_TEMPLATE_FIELDS)
+        raise ValueError(f"不支持的模板字段：{', '.join(unknown)}。可用字段：{allowed}")
+    return template
+
+
+def build_proposed_filename(record: PaperRecord, template: str = DEFAULT_RENAME_TEMPLATE) -> str:
+    template = validate_rename_template(template)
+    values = {
+        "year": record.year,
+        "author": surname_from_author(record.authors[0]) if record.authors else "",
+        "title": record.title,
+        "doi": record.doi,
+    }
+
+    rendered = TEMPLATE_TOKEN_RE.sub(lambda match: values.get(match.group(1), ""), template).strip()
+    if rendered.lower().endswith(".pdf"):
+        rendered = rendered[:-4]
+
+    literal_text = TEMPLATE_TOKEN_RE.sub("", template)
+    if not any(values.values()) and not re.search(r"[\w]", literal_text, re.UNICODE):
         return record.path.name
-    stem = "_".join(parts)
-    stem = stem[:165].rstrip("_.")
+
+    stem = safe_filename_component(rendered, 165).rstrip("_.")
+    if not stem or stem == "Untitled":
+        return record.path.name
     return f"{stem}.pdf"
 
 
