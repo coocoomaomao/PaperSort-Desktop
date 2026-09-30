@@ -32,7 +32,13 @@ jobs:
             --icon build/papersort.ico `
             --collect-all fitz `
             --collect-all PySide6 `
-            src/papersort/main.py
+            scripts/papersort_bootstrap.py
+      - name: Smoke test packaged app
+        shell: pwsh
+        run: |
+          $env:QT_QPA_PLATFORM = "offscreen"
+          & ".\\dist\\PaperSort-Desktop\\PaperSort-Desktop.exe" --smoke-test
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Install Inno Setup
         run: choco install innosetup -y --no-progress
       - name: Build installer
