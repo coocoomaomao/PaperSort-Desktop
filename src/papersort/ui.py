@@ -13,6 +13,7 @@ from PySide6.QtWidgets import (
     QLabel,
     QMainWindow,
     QMessageBox,
+    QLineEdit,
     QPushButton,
     QProgressBar,
     QTableWidget,
@@ -24,6 +25,7 @@ from PySide6.QtWidgets import (
 
 from .executor import apply_plan, latest_manifest, undo_manifest
 from .exporter import export_bibtex, export_csv
+from .metadata import DEFAULT_RENAME_TEMPLATE, validate_rename_template
 from .models import PlanItem, ScanResult
 from .planner import build_plan
 from .scanner import scan_folder
@@ -154,6 +156,7 @@ class MainWindow(QMainWindow):
         self._plan: list[PlanItem] = []
         self._worker: ScanWorker | None = None
         self._settings = QSettings("MeowBuild Lab", "PaperSort Desktop")
+        self._rename_template = self._settings.value("rename_template", DEFAULT_RENAME_TEMPLATE, type=str) or DEFAULT_RENAME_TEMPLATE
         self._build_ui()
         self._apply_styles()
         self._show_first_run_tip()
@@ -178,7 +181,7 @@ class MainWindow(QMainWindow):
         brand.addLayout(brand_text)
         header.addLayout(brand)
         header.addStretch()
-        badge = QLabel("OPEN SOURCE · v0.1.0")
+        badge = QLabel("OPEN SOURCE · v0.2.0")
         badge.setObjectName("versionBadge")
         header.addWidget(badge)
         root.addLayout(header)
@@ -225,6 +228,23 @@ class MainWindow(QMainWindow):
         action_row.addWidget(self.undo_btn)
         action_row.addWidget(self.apply_btn)
         root.addLayout(action_row)
+
+        template_row = QHBoxLayout()
+        template_label = QLabel("命名模板")
+        template_label.setObjectName("templateLabel")
+        self.template_input = QLineEdit(self._rename_template)
+        self.template_input.setPlaceholderText(DEFAULT_RENAME_TEMPLATE)
+        self.template_input.setToolTip("可用变量：{year} {author} {title} {doi}")
+        self.template_input.editingFinished.connect(self.update_rename_template)
+        template_reset = QPushButton("恢复默认")
+        template_reset.clicked.connect(self.reset_rename_template)
+        template_hint = QLabel("可用：{year} · {author} · {title} · {doi}")
+        template_hint.setObjectName("templateHint")
+        template_row.addWidget(template_label)
+        template_row.addWidget(self.template_input, 1)
+        template_row.addWidget(template_reset)
+        template_row.addWidget(template_hint)
+        root.addLayout(template_row)
 
         self.progress = QProgressBar()
         self.progress.setVisible(False)
@@ -279,6 +299,10 @@ class MainWindow(QMainWindow):
             QPushButton:disabled {{ color: #A9B0B7; background: #F1F3F5; }}
             QPushButton#primary {{ background: {NAVY}; color: white; border: none; }}
             QPushButton#primary:hover {{ background: #274A76; }}
+            QLineEdit {{ background: white; border: 1px solid {BORDER}; border-radius: 9px; padding: 8px 10px; }}
+            QLineEdit:focus {{ border-color: {TEAL}; }}
+            #templateLabel {{ color: {NAVY}; font-weight: 700; }}
+            #templateHint {{ color: {MUTED}; }}
             QFrame#statCard {{ background: white; border: 1px solid {BORDER}; border-radius: 12px; }}
             #statValue {{ font-size: 23px; font-weight: 800; color: {NAVY}; }}
             #statLabel {{ color: {MUTED}; }}
@@ -301,6 +325,25 @@ class MainWindow(QMainWindow):
             "3. 疑似重复默认不勾选，请人工确认。\n"
             "4. 点击“应用选中的修改”后仍可撤销上一次操作。",
         )
+
+    def update_rename_template(self):
+        template = self.template_input.text().strip() or DEFAULT_RENAME_TEMPLATE
+        try:
+            validate_rename_template(template)
+        except ValueError as exc:
+            QMessageBox.warning(self, "命名模板不可用", str(exc))
+            self.template_input.setText(self._rename_template)
+            return
+        self._rename_template = template
+        self.template_input.setText(template)
+        self._settings.setValue("rename_template", template)
+        self.rebuild_plan()
+
+    def reset_rename_template(self):
+        self._rename_template = DEFAULT_RENAME_TEMPLATE
+        self.template_input.setText(DEFAULT_RENAME_TEMPLATE)
+        self._settings.setValue("rename_template", DEFAULT_RENAME_TEMPLATE)
+        self.rebuild_plan()
 
     def choose_folder(self):
         selected = QFileDialog.getExistingDirectory(self, "选择论文 PDF 文件夹")
@@ -364,6 +407,7 @@ class MainWindow(QMainWindow):
             self._result.records,
             organize_by_year=self.organize.isChecked(),
             root=self._result.root,
+            rename_template=self._rename_template,
         )
         self.card_total.set_value(self._result.total)
         self.card_rename.set_value(sum(1 for p in self._plan if p.action == "rename"))
