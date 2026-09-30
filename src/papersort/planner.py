@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from .metadata import DEFAULT_RENAME_TEMPLATE, build_proposed_filename
 from .models import PaperRecord, PlanItem
 
 
@@ -23,6 +24,7 @@ def build_plan(
     records: list[PaperRecord],
     organize_by_year: bool = False,
     root: Path | None = None,
+    rename_template: str = DEFAULT_RENAME_TEMPLATE,
 ) -> list[PlanItem]:
     reserved: set[Path] = {r.path.resolve() for r in records}
     plan: list[PlanItem] = []
@@ -31,7 +33,7 @@ def build_plan(
     for record in records:
         source = record.path.resolve()
         reserved.discard(source)
-        filename = record.proposed_filename or source.name
+        filename = build_proposed_filename(record, rename_template)
         folder = source.parent
         if organize_by_year and record.year:
             # Organizing means a library-level year folder, not a nested year folder
