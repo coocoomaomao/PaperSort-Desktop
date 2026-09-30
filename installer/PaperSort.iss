@@ -1,5 +1,5 @@
 #define MyAppName "PaperSort Desktop"
-#define MyAppVersion "0.1.0"
+#define MyAppVersion "0.2.0"
 #define MyAppPublisher "MeowBuild Lab"
 #define MyAppExeName "PaperSort-Desktop.exe"
 
@@ -12,7 +12,7 @@ DefaultDirName={autopf}\PaperSort Desktop
 DefaultGroupName={#MyAppName}
 DisableProgramGroupPage=yes
 OutputDir=..\dist-installer
-OutputBaseFilename=PaperSort-Desktop-v0.1.0-Setup
+OutputBaseFilename=PaperSort-Desktop-v0.2.0-Setup
 Compression=lzma
 SolidCompression=yes
 WizardStyle=modern
