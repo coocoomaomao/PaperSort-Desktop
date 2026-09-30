@@ -7,12 +7,13 @@ PaperSort Desktop is a local-first, open-source Windows app for researchers who 
 [![CI](https://github.com/coocoomaomao/PaperSort-Desktop/actions/workflows/ci.yml/badge.svg)](https://github.com/coocoomaomao/PaperSort-Desktop/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-## v0.1 — Open Source Preview
+## v0.2 — Open Source Preview
 
 - Drag in a folder and recursively scan PDF papers.
 - Extract title, author, year and DOI locally when they can be determined reliably.
 - Detect **exact duplicates** by SHA-256 and **same-DOI duplicates**.
 - Generate readable filenames such as `2026_Smith_Clean_Research_Title.pdf`.
+- Customize the rename template with `{year}`, `{author}`, `{title}` and `{doi}` while keeping a full preview before changes.
 - Preview every rename before anything changes.
 - Duplicate candidates are **not selected by default**.
 - Optional organization into library-level year folders.
@@ -52,7 +53,7 @@ GitHub Actions contains a Windows build workflow that creates a PyInstaller + In
 
 ## Privacy
 
-The v0.1 scanner runs locally. It does not upload PDF content and does not use papers for model training. Online metadata lookup is not enabled in v0.1. See [Privacy Notes](docs/PRIVACY.md).
+The v0.2 scanner runs locally. It does not upload PDF content and does not use papers for model training. Online metadata lookup is not enabled in v0.1. See [Privacy Notes](docs/PRIVACY.md).
 
 ## Safety
 
