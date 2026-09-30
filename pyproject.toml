@@ -1,0 +1,45 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "papersort-desktop"
+version = "0.1.0"
+description = "Local-first desktop app for organizing academic PDFs."
+readme = "README.md"
+license = {text = "MIT"}
+authors = [{name = "MeowBuild Lab"}]
+requires-python = ">=3.11"
+keywords = ["academic-pdf", "reference-management", "pdf-organizer", "research-tools"]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "License :: OSI Approved :: MIT License",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Operating System :: Microsoft :: Windows",
+]
+dependencies = [
+  "PyMuPDF>=1.24,<2",
+  "PySide6>=6.7,<7",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8,<9",
+  "pyinstaller>=6,<7",
+  "Pillow>=10,<12",
+]
+
+[project.scripts]
+papersort = "papersort.main:main"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"

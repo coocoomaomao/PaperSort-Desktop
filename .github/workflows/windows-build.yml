@@ -1,0 +1,50 @@
+name: Windows build
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+  pull_request:
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install dependencies
+        shell: pwsh
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+      - name: Run tests
+        run: pytest
+      - name: Build icon
+        run: python scripts/build_icon.py
+      - name: Build desktop app
+        shell: pwsh
+        run: |
+          pyinstaller --noconfirm --clean --windowed --onedir `
+            --name PaperSort-Desktop `
+            --icon build/papersort.ico `
+            --collect-all fitz `
+            --collect-all PySide6 `
+            src/papersort/main.py
+      - name: Install Inno Setup
+        run: choco install innosetup -y --no-progress
+      - name: Build installer
+        shell: pwsh
+        run: '& "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer\PaperSort.iss'
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: PaperSort-Desktop-v0.1.0-Windows
+          path: |
+            dist-installer/PaperSort-Desktop-v0.1.0-Setup.exe
+            README.md
+            LICENSE
+            CONTRIBUTING.md
+            docs/PRIVACY.md
