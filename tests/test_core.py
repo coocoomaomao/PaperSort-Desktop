@@ -7,9 +7,10 @@ from pathlib import Path
 import fitz
 import pytest
 
+from papersort.duplicates import duplicate_groups
 from papersort.executor import apply_plan, undo_manifest
 from papersort.exporter import export_bibtex, export_csv
-from papersort.metadata import normalize_doi
+from papersort.metadata import build_proposed_filename, normalize_doi, validate_rename_template
 from papersort.models import PaperRecord, PlanItem
 from papersort.planner import build_plan
 from papersort.scanner import scan_folder
@@ -49,6 +50,44 @@ def test_same_doi_nonidentical_is_flagged(tmp_path: Path):
     make_pdf(tmp_path / "b.pdf", "Second Paper", "Bob Li", "2024", "10.5678/shared", "two")
     result = scan_folder(tmp_path)
     assert {r.duplicate_kind for r in result.records} == {"doi"}
+
+
+def test_duplicate_groups_are_stable(tmp_path: Path):
+    original = tmp_path / "a.pdf"
+    make_pdf(original, "Duplicate Study", "Kai Chen", "2023", "10.2222/dup")
+    shutil.copy2(original, tmp_path / "b.pdf")
+    make_pdf(tmp_path / "unique.pdf", "Unique Study", "Ada Smith", "2025", "10.9999/unique")
+
+    result = scan_folder(tmp_path)
+    groups = duplicate_groups(result.records)
+    assert len(groups) == 1
+    group_id, records = groups[0]
+    assert group_id.startswith("sha256:")
+    assert [record.path.name for record in records] == ["a.pdf", "b.pdf"]
+
+
+def test_custom_rename_template(tmp_path: Path):
+    record = PaperRecord(
+        path=tmp_path / "messy.pdf",
+        size_bytes=123,
+        sha256="b" * 64,
+        title="Useful Research",
+        authors=["Ada Smith"],
+        year="2025",
+        doi="10.1234/example",
+    )
+    assert build_proposed_filename(record, "{author}_{year}_{title}") == "Smith_2025_Useful_Research.pdf"
+    assert build_proposed_filename(record, "{year}-{doi}") == "2025-10_1234_example.pdf"
+    assert build_proposed_filename(record, "{title}.pdf") == "Useful_Research.pdf"
+    with pytest.raises(ValueError, match="不支持的模板字段"):
+        validate_rename_template("{journal}_{title}")
+
+
+def test_plan_uses_custom_rename_template(tmp_path: Path):
+    make_pdf(tmp_path / "messy.pdf", "Clean Research Title", "Ada Smith", "2026", "10.1111/example")
+    result = scan_folder(tmp_path)
+    plan = build_plan(result.records, rename_template="{author}-{year}")
+    assert plan[0].target.name == "Smith-2026.pdf"
 
 
 def test_apply_and_undo(tmp_path: Path):
